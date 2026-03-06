@@ -113,6 +113,9 @@ type llmobsContext struct {
 	outputMessages  []LLMMessage
 	outputText      string
 
+	// tool specific
+	intent string
+
 	// experiment specific
 	experimentInput          any
 	experimentExpectedOutput any
@@ -513,6 +516,14 @@ func (l *LLMObs) llmobsSpanEvent(span *Span) *transport.LLMObsSpanEvent {
 		meta["tool_definitions"] = toolDefinitions
 	}
 
+	if intent := span.llmCtx.intent; intent != "" {
+		if spanKind != SpanKindTool {
+			log.Warn("llmobs: dropping intent on non-tool span kind, annotating intent is only supported for tool span kinds")
+		} else {
+			meta["intent"] = intent
+		}
+	}
+
 	spanStatus := "ok"
 	var errMsg *transport.ErrorMessage
 	if span.error != nil {
@@ -699,6 +710,7 @@ func (l *LLMObs) StartSpan(ctx context.Context, kind SpanKind, name string, cfg 
 	span.mlApp = cfg.MLApp
 	span.spanKind = kind
 	span.sessionID = cfg.SessionID
+	span.integration = cfg.Integration
 
 	span.llmCtx = llmobsContext{
 		modelName:     cfg.ModelName,
