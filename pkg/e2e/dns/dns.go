@@ -61,23 +61,24 @@ func (kd *KubeDNS) Start(name string, args ...string) {
 		kd.isRunning = false
 	}()
 
-	// dns service
+	// SkyDNS listens as soon as Run() starts the skydns goroutine.
 	om.Eventually(func() error {
-		conn, err := net.Dial("tcp", "localhost:10053")
+		conn, err := net.Dial("tcp", "127.0.0.1:10053")
 		if err == nil {
 			conn.Close()
 		}
 		return err
-	}).Should(om.Succeed())
+	}, "30s", "100ms").Should(om.Succeed())
 
-	// health check service
+	// Readiness HTTP is only served after informer HasSynced() in kd.Start().
+	// Default Eventually timeout is 1s, which races slower client-go sync on CI.
 	om.Eventually(func() error {
-		conn, err := net.Dial("tcp", "localhost:8081")
+		conn, err := net.Dial("tcp", "127.0.0.1:8081")
 		if err == nil {
 			conn.Close()
 		}
 		return err
-	}).Should(om.Succeed())
+	}, "90s", "200ms").Should(om.Succeed())
 
 	e2e.Log.Logf("kube-dns started")
 }
@@ -106,7 +107,7 @@ func (kd *KubeDNS) Query(name string, qtype uint16) ([]string, error) {
 		dns.Question{Name: name, Qtype: qtype, Qclass: dns.ClassINET})
 
 	client := &dns.Client{}
-	msg, _, err := client.Exchange(msg, "localhost:10053")
+	msg, _, err := client.Exchange(msg, "127.0.0.1:10053")
 	if err != nil {
 		return []string{}, err
 	}
