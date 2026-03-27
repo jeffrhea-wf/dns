@@ -66,8 +66,8 @@ func newConcentrator(c *config, bucketSize int64, statsdClient internal.StatsdCl
 		BucketInterval:         defaultStatsBucketSize,
 	}
 	env := c.agent.defaultEnv
-	if c.internalConfig.Env() != "" {
-		env = c.internalConfig.Env()
+	if c.env != "" {
+		env = c.env
 	}
 	if env == "" {
 		// We do this to avoid a panic in the stats calculation logic when env is empty
@@ -77,14 +77,14 @@ func newConcentrator(c *config, bucketSize int64, statsdClient internal.StatsdCl
 		log.Debug("No DD Env found, normally the agent should have one")
 	}
 	gitCommitSha := ""
-	if c.internalConfig.CIVisibilityEnabled() {
+	if c.ciVisibilityEnabled {
 		// We only have this data if we're in CI Visibility
 		gitCommitSha = utils.GetCITags()[constants.GitCommitSHA]
 	}
 	aggKey := stats.PayloadAggregationKey{
-		Hostname:     c.internalConfig.Hostname(),
+		Hostname:     c.hostname,
 		Env:          env,
-		Version:      c.internalConfig.Version(),
+		Version:      c.version,
 		ContainerID:  "", // This intentionally left empty as the Agent will attach the container ID only in certain situations.
 		GitCommitSha: gitCommitSha,
 		ImageTag:     "",

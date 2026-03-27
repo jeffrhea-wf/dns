@@ -65,8 +65,7 @@ func newClient(tracerConfig internal.TracerConfig, config ClientConfig) (*client
 			skipAllowlist: config.Debug,
 			queueSize:     config.DistributionsSize,
 		},
-		appEndpoints: appEndpoints{isFirst: true},
-		backend:      newLoggerBackend(config.MaxDistinctLogs),
+		backend: newLoggerBackend(config.MaxDistinctLogs),
 	}
 
 	client.dataSources = append(client.dataSources,
@@ -74,7 +73,6 @@ func newClient(tracerConfig internal.TracerConfig, config ClientConfig) (*client
 		&client.products,
 		&client.configuration,
 		&client.dependencies,
-		&client.appEndpoints,
 	)
 
 	if config.LogsEnabled {
@@ -108,7 +106,6 @@ type client struct {
 	backend       *loggerBackend
 	metrics       metrics
 	distributions distributions
-	appEndpoints  appEndpoints
 
 	// flushMapper is the transformer to use for the next flush on the gathered bodies on this tick
 	flushMapper   mapper.Mapper
@@ -211,10 +208,6 @@ func (c *client) Config() ClientConfig {
 	return c.clientConfig
 }
 
-func (c *client) RegisterAppEndpoint(opName string, resName string, attrs AppEndpointAttributes) {
-	c.appEndpoints.Add(opName, resName, attrs)
-}
-
 // Flush sends all the data sources before calling flush
 // This function is called by the flushTicker so it should not panic, or it will crash the whole customer application.
 // If a panic occurs, we stop the telemetry and log the error.
@@ -229,7 +222,7 @@ func (c *client) Flush() {
 		} else {
 			log.Warn("panic while flushing telemetry data, stopping telemetry!")
 		}
-		telemetryClientEnabled = false
+		telemetryClientDisabled = true
 		if gc, ok := GlobalClient().(*client); ok && gc == c {
 			SwapClient(nil)
 		}

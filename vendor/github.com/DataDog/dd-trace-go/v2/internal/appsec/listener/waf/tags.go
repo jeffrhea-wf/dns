@@ -31,22 +31,13 @@ const (
 
 	durationExtSuffix = ".duration_ext"
 
-	blockedRequestTag  = "appsec.blocked"
-	downwardRequestTag = wafSpanTagPrefix + "downstream_request"
+	blockedRequestTag = "appsec.blocked"
 )
 
 // AddRulesMonitoringTags adds the tags related to security rules monitoring
 func AddRulesMonitoringTags(th trace.TagSetter) {
 	th.SetTag(wafVersionTag, libddwaf.Version())
 	th.SetTag(ext.ManualKeep, samplernames.AppSec)
-}
-
-func addDownwardRequestTag(th trace.TagSetter, value int) {
-	if value == 0 {
-		return
-	}
-
-	th.SetTag(downwardRequestTag, value)
 }
 
 // AddWAFMonitoringTags adds the tags related to the monitoring of the WAF

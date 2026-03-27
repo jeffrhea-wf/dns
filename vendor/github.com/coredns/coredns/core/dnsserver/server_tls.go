@@ -12,7 +12,6 @@ import (
 	"github.com/coredns/coredns/plugin/pkg/transport"
 
 	"github.com/miekg/dns"
-	"github.com/pires/go-proxyproto"
 )
 
 // ServerTLS represents an instance of a TLS-over-DNS-server.
@@ -79,9 +78,6 @@ func (s *ServerTLS) Listen() (net.Listener, error) {
 	l, err := reuseport.Listen("tcp", s.Addr[len(transport.TLS+"://"):])
 	if err != nil {
 		return nil, err
-	}
-	if s.connPolicy != nil {
-		l = &proxyproto.Listener{Listener: l, ConnPolicy: s.connPolicy}
 	}
 	return l, nil
 }

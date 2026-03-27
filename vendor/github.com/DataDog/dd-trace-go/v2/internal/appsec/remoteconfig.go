@@ -306,8 +306,7 @@ func (a *appsec) enableRemoteActivation() error {
 		return errors.New("no valid remote configuration client")
 	}
 	log.Debug("appsec: Remote Config: subscribing to ASM_FEATURES updates...")
-	_, err := remoteconfig.Subscribe(state.ProductASMFeatures, a.handleASMFeatures, remoteconfig.ASMActivation)
-	return err
+	return remoteconfig.Subscribe(state.ProductASMFeatures, a.handleASMFeatures, remoteconfig.ASMActivation)
 }
 
 var baseCapabilities = [...]remoteconfig.Capability{

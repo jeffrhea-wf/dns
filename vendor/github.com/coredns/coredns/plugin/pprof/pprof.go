@@ -3,12 +3,10 @@
 package pprof
 
 import (
-	"context"
 	"net"
 	"net/http"
 	pp "net/http/pprof"
 	"runtime"
-	"time"
 
 	"github.com/coredns/coredns/plugin/pkg/reuseport"
 )
@@ -17,11 +15,8 @@ type handler struct {
 	addr     string
 	rateBloc int
 	ln       net.Listener
-	srv      *http.Server
 	mux      *http.ServeMux
 }
-
-const shutdownTimeout = 5 * time.Second
 
 func (h *handler) Startup() error {
 	// Reloading the plugin without changing the listening address results
@@ -47,25 +42,15 @@ func (h *handler) Startup() error {
 
 	runtime.SetBlockProfileRate(h.rateBloc)
 
-	h.srv = &http.Server{
-		Handler:      h.mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		IdleTimeout:  5 * time.Second,
-	}
-
-	go func() { h.srv.Serve(h.ln) }()
+	go func() {
+		http.Serve(h.ln, h.mux)
+	}()
 	return nil
 }
 
 func (h *handler) Shutdown() error {
-	if h.srv != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := h.srv.Shutdown(ctx); err != nil {
-			log.Infof("Failed to stop pprof http server: %s", err)
-			return err
-		}
+	if h.ln != nil {
+		return h.ln.Close()
 	}
 	return nil
 }

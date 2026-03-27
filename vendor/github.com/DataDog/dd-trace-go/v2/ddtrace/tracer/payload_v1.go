@@ -118,33 +118,18 @@ func (p *payloadV1) push(t spanList) (stats payloadStats, err error) {
 		if span == nil {
 			continue
 		}
-
-		if span.context == nil {
-			continue
-		}
-
 		// If we haven't seen the service yet, we set it blindly assuming that all the spans created by
 		// a service must share the same value.
 		if _, ok := attr["service"]; !ok {
 			attr["service"] = anyValue{valueType: StringValueType, value: span.Root().service}
 		}
-
 		binary.BigEndian.PutUint64(traceID[:8], span.Context().traceID.Upper())
 		binary.BigEndian.PutUint64(traceID[8:], span.Context().traceID.Lower())
 
-		if span.context.trace == nil {
-			continue
-		}
-
-		// TODO(darccio): are we sure that priority will be shared across all the spans in the chunk?
-		if prio, ok := span.context.trace.samplingPriority(); ok {
-			priority = prio
-		}
-
-		// TODO(darccio): are we sure that origin will be shared across all the spans in the chunk?
-		origin = span.Context().origin
-
-		if dm := span.context.trace.propagatingTag(keyDecisionMaker); dm != "" {
+		if prio, ok := span.Context().SamplingPriority(); ok {
+			origin = span.Context().origin // TODO(darccio): are we sure that origin will be shared across all the spans in the chunk?
+			priority = prio                // TODO(darccio): the same goes for priority.
+			dm := span.context.trace.propagatingTag(keyDecisionMaker)
 			if v, err := strconv.ParseInt(dm, 10, 32); err == nil {
 				if v < 0 {
 					v = -v
@@ -175,7 +160,6 @@ func (p *payloadV1) push(t spanList) (stats payloadStats, err error) {
 
 	p.chunks = append(p.chunks, tc)
 	p.recordItem()
-	p.update()
 	return p.stats(), err
 }
 
@@ -284,9 +268,9 @@ func (p *payloadV1) Write(b []byte) (int, error) {
 
 // Read implements io.Reader. It reads from the msgpack-encoded stream.
 func (p *payloadV1) Read(b []byte) (n int, err error) {
-	// Ensure header and buffer are initialized (handles empty payload case)
 	if len(p.header) == 0 {
-		p.update()
+		p.header = make([]byte, 8)
+		p.updateHeader()
 	}
 	if p.readOff < len(p.header) {
 		// reading header
@@ -294,20 +278,13 @@ func (p *payloadV1) Read(b []byte) (n int, err error) {
 		p.readOff += n
 		return n, nil
 	}
+	if len(p.buf) == 0 {
+		p.encode()
+	}
 	if p.reader == nil {
 		p.reader = bytes.NewReader(p.buf)
 	}
 	return p.reader.Read(b)
-}
-
-func (p *payloadV1) update() {
-	if len(p.header) == 0 {
-		p.header = make([]byte, 8)
-	}
-	p.updateHeader()
-	// Reset the buffer length to 0 before re-encoding
-	p.buf = p.buf[:0]
-	p.encode()
 }
 
 // encode writes existing payload fields into the buffer in msgp format.
@@ -531,10 +508,7 @@ func (p *payloadV1) encodeSpanLinks(bm bitmap, fieldID int, spanLinks []SpanLink
 	for _, link := range spanLinks {
 		p.buf = msgp.AppendMapHeader(p.buf, 5) // number of fields in span link
 
-		traceID := [16]byte{}
-		binary.BigEndian.PutUint64(traceID[:8], link.TraceIDHigh)
-		binary.BigEndian.PutUint64(traceID[8:], link.TraceID)
-		p.buf = encodeField(p.buf, fullSetBitmap, 1, traceID[:], st)
+		p.buf = encodeField(p.buf, fullSetBitmap, 1, link.TraceID, st)
 		p.buf = encodeField(p.buf, fullSetBitmap, 2, link.SpanID, st)
 
 		attr := map[string]anyValue{}
@@ -1227,17 +1201,7 @@ func (link *SpanLink) decode(b []byte, st *stringTable) ([]byte, error) {
 		// read msgp string value
 		switch idx {
 		case 1:
-			var traceIDBytes []byte
-			traceIDBytes, o, err = msgp.ReadBytesBytes(o, nil)
-			if err != nil {
-				return o, err
-			}
-			if len(traceIDBytes) >= 16 {
-				link.TraceIDHigh = binary.BigEndian.Uint64(traceIDBytes[:8])
-				link.TraceID = binary.BigEndian.Uint64(traceIDBytes[8:])
-			} else if len(traceIDBytes) >= 8 {
-				link.TraceID = binary.BigEndian.Uint64(traceIDBytes)
-			}
+			link.TraceID, o, err = msgp.ReadUint64Bytes(o)
 		case 2:
 			link.SpanID, o, err = msgp.ReadUint64Bytes(o)
 		case 3:

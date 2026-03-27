@@ -16,52 +16,52 @@ func Hash(what []byte) uint64 {
 }
 
 // Cache is cache.
-type Cache[T any] struct {
-	shards [shardSize]*shard[T]
+type Cache struct {
+	shards [shardSize]*shard
 }
 
 // shard is a cache with random eviction.
-type shard[T any] struct {
-	items map[uint64]T
+type shard struct {
+	items map[uint64]any
 	size  int
 
 	sync.RWMutex
 }
 
 // New returns a new cache.
-func New[T any](size int) *Cache[T] {
+func New(size int) *Cache {
 	ssize := max(size/shardSize, 4)
 
-	c := &Cache[T]{}
+	c := &Cache{}
 
 	// Initialize all the shards
 	for i := range shardSize {
-		c.shards[i] = newShard[T](ssize)
+		c.shards[i] = newShard(ssize)
 	}
 	return c
 }
 
 // Add adds a new element to the cache. If the element already exists it is overwritten.
 // Returns true if an existing element was evicted to make room for this element.
-func (c *Cache[T]) Add(key uint64, el T) bool {
+func (c *Cache) Add(key uint64, el any) bool {
 	shard := key & (shardSize - 1)
 	return c.shards[shard].Add(key, el)
 }
 
 // Get looks up element index under key.
-func (c *Cache[T]) Get(key uint64) (T, bool) {
+func (c *Cache) Get(key uint64) (any, bool) {
 	shard := key & (shardSize - 1)
 	return c.shards[shard].Get(key)
 }
 
 // Remove removes the element indexed with key.
-func (c *Cache[T]) Remove(key uint64) {
+func (c *Cache) Remove(key uint64) {
 	shard := key & (shardSize - 1)
 	c.shards[shard].Remove(key)
 }
 
 // Len returns the number of elements in the cache.
-func (c *Cache[T]) Len() int {
+func (c *Cache) Len() int {
 	l := 0
 	for _, s := range &c.shards {
 		l += s.Len()
@@ -70,18 +70,18 @@ func (c *Cache[T]) Len() int {
 }
 
 // Walk walks each shard in the cache.
-func (c *Cache[T]) Walk(f func(map[uint64]T, uint64) bool) {
+func (c *Cache) Walk(f func(map[uint64]any, uint64) bool) {
 	for _, s := range &c.shards {
 		s.Walk(f)
 	}
 }
 
 // newShard returns a new shard with size.
-func newShard[T any](size int) *shard[T] { return &shard[T]{items: make(map[uint64]T), size: size} }
+func newShard(size int) *shard { return &shard{items: make(map[uint64]any), size: size} }
 
 // Add adds element indexed by key into the cache. Any existing element is overwritten
 // Returns true if an existing element was evicted to make room for this element.
-func (s *shard[T]) Add(key uint64, el T) bool {
+func (s *shard) Add(key uint64, el any) bool {
 	eviction := false
 	s.Lock()
 	if len(s.items) >= s.size {
@@ -99,14 +99,14 @@ func (s *shard[T]) Add(key uint64, el T) bool {
 }
 
 // Remove removes the element indexed by key from the cache.
-func (s *shard[T]) Remove(key uint64) {
+func (s *shard) Remove(key uint64) {
 	s.Lock()
 	delete(s.items, key)
 	s.Unlock()
 }
 
 // Evict removes a random element from the cache.
-func (s *shard[T]) Evict() {
+func (s *shard) Evict() {
 	s.Lock()
 	for k := range s.items {
 		delete(s.items, k)
@@ -116,7 +116,7 @@ func (s *shard[T]) Evict() {
 }
 
 // Get looks up the element indexed under key.
-func (s *shard[T]) Get(key uint64) (T, bool) {
+func (s *shard) Get(key uint64) (any, bool) {
 	s.RLock()
 	el, found := s.items[key]
 	s.RUnlock()
@@ -124,7 +124,7 @@ func (s *shard[T]) Get(key uint64) (T, bool) {
 }
 
 // Len returns the current length of the cache.
-func (s *shard[T]) Len() int {
+func (s *shard) Len() int {
 	s.RLock()
 	l := len(s.items)
 	s.RUnlock()
@@ -132,7 +132,7 @@ func (s *shard[T]) Len() int {
 }
 
 // Walk walks the shard for each element the function f is executed while holding a write lock.
-func (s *shard[T]) Walk(f func(map[uint64]T, uint64) bool) {
+func (s *shard) Walk(f func(map[uint64]any, uint64) bool) {
 	s.RLock()
 	items := make([]uint64, len(s.items))
 	i := 0

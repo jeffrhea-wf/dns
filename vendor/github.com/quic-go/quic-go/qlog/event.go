@@ -214,7 +214,6 @@ func (e ConnectionClosed) Encode(enc *jsontext.Encoder, _ time.Time) error {
 type PacketSent struct {
 	Header            PacketHeader
 	Raw               RawInfo
-	DatagramID        DatagramID
 	Frames            []Frame
 	ECN               ECN
 	IsCoalesced       bool
@@ -234,10 +233,6 @@ func (e PacketSent) Encode(enc *jsontext.Encoder, _ time.Time) error {
 	h.WriteToken(jsontext.String("raw"))
 	if err := e.Raw.encode(enc); err != nil {
 		return err
-	}
-	if e.DatagramID != 0 {
-		h.WriteToken(jsontext.String("datagram_id"))
-		h.WriteToken(jsontext.Uint(uint64(e.DatagramID)))
 	}
 	if len(e.Frames) > 0 {
 		h.WriteToken(jsontext.String("frames"))
@@ -264,7 +259,6 @@ func (e PacketSent) Encode(enc *jsontext.Encoder, _ time.Time) error {
 type PacketReceived struct {
 	Header      PacketHeader
 	Raw         RawInfo
-	DatagramID  DatagramID
 	Frames      []Frame
 	ECN         ECN
 	IsCoalesced bool
@@ -283,10 +277,6 @@ func (e PacketReceived) Encode(enc *jsontext.Encoder, _ time.Time) error {
 	h.WriteToken(jsontext.String("raw"))
 	if err := e.Raw.encode(enc); err != nil {
 		return err
-	}
-	if e.DatagramID != 0 {
-		h.WriteToken(jsontext.String("datagram_id"))
-		h.WriteToken(jsontext.Uint(uint64(e.DatagramID)))
 	}
 	if len(e.Frames) > 0 {
 		h.WriteToken(jsontext.String("frames"))
@@ -355,9 +345,8 @@ func (e VersionNegotiationSent) Encode(enc *jsontext.Encoder, _ time.Time) error
 }
 
 type PacketBuffered struct {
-	Header     PacketHeader
-	Raw        RawInfo
-	DatagramID DatagramID
+	Header PacketHeader
+	Raw    RawInfo
 }
 
 func (e PacketBuffered) Name() string { return "transport:packet_buffered" }
@@ -373,10 +362,6 @@ func (e PacketBuffered) Encode(enc *jsontext.Encoder, _ time.Time) error {
 	if err := e.Raw.encode(enc); err != nil {
 		return err
 	}
-	if e.DatagramID != 0 {
-		h.WriteToken(jsontext.String("datagram_id"))
-		h.WriteToken(jsontext.Uint(uint64(e.DatagramID)))
-	}
 	h.WriteToken(jsontext.String("trigger"))
 	h.WriteToken(jsontext.String("keys_unavailable"))
 	h.WriteToken(jsontext.EndObject)
@@ -385,10 +370,9 @@ func (e PacketBuffered) Encode(enc *jsontext.Encoder, _ time.Time) error {
 
 // PacketDropped is the transport:packet_dropped event.
 type PacketDropped struct {
-	Header     PacketHeader
-	Raw        RawInfo
-	DatagramID DatagramID
-	Trigger    PacketDropReason
+	Header  PacketHeader
+	Raw     RawInfo
+	Trigger PacketDropReason
 }
 
 func (e PacketDropped) Name() string { return "transport:packet_dropped" }
@@ -403,10 +387,6 @@ func (e PacketDropped) Encode(enc *jsontext.Encoder, _ time.Time) error {
 	h.WriteToken(jsontext.String("raw"))
 	if err := e.Raw.encode(enc); err != nil {
 		return err
-	}
-	if e.DatagramID != 0 {
-		h.WriteToken(jsontext.String("datagram_id"))
-		h.WriteToken(jsontext.Uint(uint64(e.DatagramID)))
 	}
 	h.WriteToken(jsontext.String("trigger"))
 	h.WriteToken(jsontext.String(string(e.Trigger)))
@@ -822,28 +802,6 @@ func (e ALPNInformation) Encode(enc *jsontext.Encoder, _ time.Time) error {
 	h.WriteToken(jsontext.BeginObject)
 	h.WriteToken(jsontext.String("chosen_alpn"))
 	h.WriteToken(jsontext.String(e.ChosenALPN))
-	h.WriteToken(jsontext.EndObject)
-	return h.err
-}
-
-// DebugEvent is a generic event that can be used to log arbitrary messages.
-type DebugEvent struct {
-	EventName string
-	Message   string
-}
-
-func (e DebugEvent) Name() string {
-	if e.EventName == "" {
-		return "transport:debug"
-	}
-	return fmt.Sprintf("transport:%s", e.EventName)
-}
-
-func (e DebugEvent) Encode(enc *jsontext.Encoder, _ time.Time) error {
-	h := encoderHelper{enc: enc}
-	h.WriteToken(jsontext.BeginObject)
-	h.WriteToken(jsontext.String("message"))
-	h.WriteToken(jsontext.String(e.Message))
 	h.WriteToken(jsontext.EndObject)
 	return h.err
 }

@@ -15,36 +15,17 @@ import (
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/miekg/dns"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pires/go-proxyproto"
-	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
-)
-
-const (
-	// maxDNSMessageBytes is the maximum size of a DNS message on the wire.
-	maxDNSMessageBytes = dns.MaxMsgSize
-
-	// maxProtobufPayloadBytes accounts for protobuf overhead.
-	// Field tag=1 (1 byte) + length varint for 65535 (3 bytes) = 4 bytes total
-	maxProtobufPayloadBytes = maxDNSMessageBytes + 4
-
-	// DefaultGRPCMaxStreams is the default maximum number of concurrent streams per connection.
-	DefaultGRPCMaxStreams = 256
-
-	// DefaultGRPCMaxConnections is the default maximum number of concurrent connections.
-	DefaultGRPCMaxConnections = 200
 )
 
 // ServergRPC represents an instance of a DNS-over-gRPC server.
 type ServergRPC struct {
 	*Server
 	*pb.UnimplementedDnsServiceServer
-	grpcServer     *grpc.Server
-	listenAddr     net.Addr
-	tlsConfig      *tls.Config
-	maxStreams     int
-	maxConnections int
+	grpcServer *grpc.Server
+	listenAddr net.Addr
+	tlsConfig  *tls.Config
 }
 
 // NewServergRPC returns a new CoreDNS GRPC server and compiles all plugin in to it.
@@ -68,22 +49,7 @@ func NewServergRPC(addr string, group []*Config) (*ServergRPC, error) {
 		tlsConfig.NextProtos = []string{"h2"}
 	}
 
-	maxStreams := DefaultGRPCMaxStreams
-	if len(group) > 0 && group[0] != nil && group[0].MaxGRPCStreams != nil {
-		maxStreams = *group[0].MaxGRPCStreams
-	}
-
-	maxConnections := DefaultGRPCMaxConnections
-	if len(group) > 0 && group[0] != nil && group[0].MaxGRPCConnections != nil {
-		maxConnections = *group[0].MaxGRPCConnections
-	}
-
-	return &ServergRPC{
-		Server:         s,
-		tlsConfig:      tlsConfig,
-		maxStreams:     maxStreams,
-		maxConnections: maxConnections,
-	}, nil
+	return &ServergRPC{Server: s, tlsConfig: tlsConfig}, nil
 }
 
 // Compile-time check to ensure ServergRPC implements the caddy.GracefulServer interface
@@ -95,36 +61,21 @@ func (s *ServergRPC) Serve(l net.Listener) error {
 	s.listenAddr = l.Addr()
 	s.m.Unlock()
 
-	serverOpts := []grpc.ServerOption{
-		grpc.MaxRecvMsgSize(maxProtobufPayloadBytes),
-		grpc.MaxSendMsgSize(maxProtobufPayloadBytes),
-	}
-
-	// Only set MaxConcurrentStreams if not unbounded (0)
-	if s.maxStreams > 0 {
-		serverOpts = append(serverOpts, grpc.MaxConcurrentStreams(uint32(s.maxStreams))) // #nosec G115 -- maxStreams is bounded
-	}
-
 	if s.Tracer() != nil {
 		onlyIfParent := func(parentSpanCtx opentracing.SpanContext, method string, req, resp any) bool {
 			return parentSpanCtx != nil
 		}
-		serverOpts = append(serverOpts, grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(s.Tracer(), otgrpc.IncludingSpans(onlyIfParent))))
+		intercept := otgrpc.OpenTracingServerInterceptor(s.Tracer(), otgrpc.IncludingSpans(onlyIfParent))
+		s.grpcServer = grpc.NewServer(grpc.UnaryInterceptor(intercept))
+	} else {
+		s.grpcServer = grpc.NewServer()
 	}
-
-	s.grpcServer = grpc.NewServer(serverOpts...)
 
 	pb.RegisterDnsServiceServer(s.grpcServer, s)
 
 	if s.tlsConfig != nil {
 		l = tls.NewListener(l, s.tlsConfig)
 	}
-
-	// Wrap listener to limit concurrent connections
-	if s.maxConnections > 0 {
-		l = netutil.LimitListener(l, s.maxConnections)
-	}
-
 	return s.grpcServer.Serve(l)
 }
 
@@ -136,9 +87,6 @@ func (s *ServergRPC) Listen() (net.Listener, error) {
 	l, err := reuseport.Listen("tcp", s.Addr[len(transport.GRPC+"://"):])
 	if err != nil {
 		return nil, err
-	}
-	if s.connPolicy != nil {
-		l = &proxyproto.Listener{Listener: l, ConnPolicy: s.connPolicy}
 	}
 	return l, nil
 }
@@ -174,9 +122,6 @@ func (s *ServergRPC) Stop() (err error) {
 // any normal server. We use a custom responseWriter to pick up the bytes we need to write
 // back to the client as a protobuf.
 func (s *ServergRPC) Query(ctx context.Context, in *pb.DnsPacket) (*pb.DnsPacket, error) {
-	if len(in.GetMsg()) > dns.MaxMsgSize {
-		return nil, fmt.Errorf("dns message exceeds size limit: %d", len(in.GetMsg()))
-	}
 	msg := new(dns.Msg)
 	err := msg.Unpack(in.GetMsg())
 	if err != nil {

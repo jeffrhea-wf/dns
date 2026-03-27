@@ -93,8 +93,7 @@ var propagationMapping = map[string]string{
 func getDDorOtelConfig(configName string) string {
 	config, ok := otelDDConfigs[configName]
 	if !ok {
-		log.Debug("Programming Error: %s not found in supported configurations", configName)
-		return ""
+		panic(fmt.Sprintf("Programming Error: %v not found in supported configurations", configName))
 	}
 
 	// 1. Check managed stable config if handsOff

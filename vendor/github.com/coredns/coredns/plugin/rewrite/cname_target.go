@@ -91,21 +91,21 @@ func (r *cnameTargetRuleWithReqState) RewriteResponse(res *dns.Msg, rr dns.RR) {
 				}
 
 				var newAnswer []dns.RR
-				// iterate over first upstream response
+				// iterate over first upstram response
 				// add the cname record to the new answer
 				for _, rr := range res.Answer {
 					if cname, ok := rr.(*dns.CNAME); ok {
-						// preserve CNAME records until the rewrite target
+						// change the target name in the response
+						cname.Target = toTarget
 						newAnswer = append(newAnswer, rr)
-						if cname.Target == fromTarget {
-							// change the target name in the response
-							cname.Target = toTarget
-							break
-						}
 					}
 				}
-				// add the upstream response to the new answer
-				newAnswer = append(newAnswer, upRes.Answer...)
+				// iterate over upstream response received
+				for _, rr := range upRes.Answer {
+					if rr.Header().Name == toTarget {
+						newAnswer = append(newAnswer, rr)
+					}
+				}
 				res.Answer = newAnswer
 				// if not propagated, the truncated response might get cached,
 				// and it will be impossible to resolve the full response
@@ -144,9 +144,6 @@ func newCNAMERule(nextAction string, args ...string) (Rule, error) {
 		Upstream:        upstream.New(),
 	}
 	if rewriteType == RegexMatch {
-		if len(paramFromTarget) > maxRegexpLen {
-			return nil, fmt.Errorf("regex pattern too long in a cname rule: %d > %d", len(paramFromTarget), maxRegexpLen)
-		}
 		re, err := regexp.Compile(paramFromTarget)
 		if err != nil {
 			return nil, fmt.Errorf("invalid cname rewrite regex pattern: %w", err)

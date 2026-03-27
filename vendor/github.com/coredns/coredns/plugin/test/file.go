@@ -12,10 +12,7 @@ func TempFile(dir, content string) (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if err := f.Close(); err != nil {
-		return "", nil, err
-	}
-	if err := os.WriteFile(f.Name(), []byte(content), 0600); err != nil {
+	if err := os.WriteFile(f.Name(), []byte(content), 0644); err != nil {
 		return "", nil, err
 	}
 	rmFunc := func() { os.Remove(f.Name()) }
@@ -46,7 +43,7 @@ xGbtCkhVk2VQ+BiCWnjYXJ6ZMzabP7wiOFDP9Pvr2ik22PRItsW/TLfHFXM1jDmc
 I1rs/VUGKzcJGVIWbHrgjP68CTStGAvKgbsTqw7aLXTSqtPw88N9XVSyRg==
 -----END CERTIFICATE-----`
 	path := filepath.Join(tempDir, "ca.pem")
-	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		return "", err
 	}
 	data = `-----BEGIN CERTIFICATE-----
@@ -67,11 +64,10 @@ zhDEPP4FhY+Sz+y1yWirphl7A1aZwhXVPcfWIGqpQ3jzNwUeocbH27kuLh+U4hQo
 qeg10RdFnw==
 -----END CERTIFICATE-----`
 	path = filepath.Join(tempDir, "cert.pem")
-	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		return "", err
 	}
 
-	//nolint:gosec // Test fixture private key.
 	data = `-----BEGIN RSA PRIVATE KEY-----
 MIIEpgIBAAKCAQEAxPBrvAIWiIJp383ndpRF+OuZ74pHsVLTJ/lSv05H+gzcGhL2
 y1i7kWXOvfmgvlPq3kZzZ7LvyZSz8KzTumyeNR0ofnlsOklJ0bvNb2Zc3J4vAh58
@@ -100,7 +96,7 @@ E/WObVJXDnBdViu0L9abE9iaTToBVri4cmlDlZagLuKVR+TFTCN/DSlVZTDkqkLI
 8chzqtkH6b2b2R73hyRysWjsomys34ma3mEEPTX/aXeAF2MSZ/EWT9yL
 -----END RSA PRIVATE KEY-----`
 	path = filepath.Join(tempDir, "key.pem")
-	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		return "", err
 	}
 

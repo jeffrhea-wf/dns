@@ -95,11 +95,7 @@ func NewTLSConfig(certPath, keyPath, caPath string) (*tls.Config, error) {
 		return nil, err
 	}
 
-	// #nosec G402 -- MinVersion and MaxVersion are set in setTLSDefaults
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      roots,
-	}
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}, RootCAs: roots}
 	setTLSDefaults(tlsConfig)
 
 	return tlsConfig, nil
@@ -113,10 +109,7 @@ func NewTLSClientConfig(caPath string) (*tls.Config, error) {
 		return nil, err
 	}
 
-	// #nosec G402 -- MinVersion and MaxVersion are set in setTLSDefaults
-	tlsConfig := &tls.Config{
-		RootCAs: roots,
-	}
+	tlsConfig := &tls.Config{RootCAs: roots}
 	setTLSDefaults(tlsConfig)
 
 	return tlsConfig, nil

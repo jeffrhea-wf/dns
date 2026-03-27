@@ -52,7 +52,4 @@ const (
 
 	// RequestTypeLogs is used to send logs to the backend
 	RequestTypeLogs RequestType = "logs"
-
-	// RequestTypeAppEndpoints is used to send endpoints to the backend
-	RequestTypeAppEndpoints RequestType = "app-endpoints"
 )

@@ -7,7 +7,8 @@ package actions
 
 import (
 	"net/http"
-	"strings"
+
+	"github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/dd-trace-go/v2/internal/log"
 )
@@ -15,35 +16,8 @@ import (
 // redirectActionParams are the dynamic parameters to be provided to a "redirect_request"
 // action type upon invocation
 type redirectActionParams struct {
-	Location           string
-	StatusCode         int
-	SecurityResponseID string
-}
-
-func (r *redirectActionParams) Decode(p map[string]any) error {
-	for k := range p {
-		switch k {
-		case "location":
-			v, err := decodeStr(p, k)
-			if err != nil {
-				return err
-			}
-			r.Location = v
-		case "status_code":
-			v, err := decodeInt(p, k)
-			if err != nil {
-				return err
-			}
-			r.StatusCode = v
-		case "security_response_id":
-			v, err := decodeStr(p, k)
-			if err != nil {
-				return err
-			}
-			r.SecurityResponseID = v
-		}
-	}
-	return nil
+	Location   string `mapstructure:"location,omitempty"`
+	StatusCode int    `mapstructure:"status_code"`
 }
 
 func init() {
@@ -52,11 +26,11 @@ func init() {
 
 func redirectParamsFromMap(params map[string]any) (redirectActionParams, error) {
 	var p redirectActionParams
-	err := p.Decode(params)
+	err := mapstructure.WeakDecode(params, &p)
 	return p, err
 }
 
-func newRedirectRequestAction(status int, loc string, securityResponseID string) *BlockHTTP {
+func newRedirectRequestAction(status int, loc string) *BlockHTTP {
 	// Default to 303 if status is out of redirection codes bounds
 	if status < http.StatusMultipleChoices || status >= http.StatusBadRequest {
 		status = http.StatusSeeOther
@@ -64,9 +38,8 @@ func newRedirectRequestAction(status int, loc string, securityResponseID string)
 
 	// If location is not set we fall back on a default block action
 	if loc == "" {
-		return &BlockHTTP{Handler: newBlockHandler(http.StatusForbidden, "auto", securityResponseID)}
+		return &BlockHTTP{Handler: newBlockHandler(http.StatusForbidden, string(blockedTemplateJSON))}
 	}
-	loc = strings.ReplaceAll(loc, securityResponsePlaceholder, securityResponseID)
 	return &BlockHTTP{Handler: http.RedirectHandler(loc, status)}
 }
 
@@ -77,5 +50,5 @@ func NewRedirectAction(params map[string]any) []Action {
 		log.Debug("appsec: couldn't decode redirect action parameters")
 		return nil
 	}
-	return []Action{newRedirectRequestAction(p.StatusCode, p.Location, p.SecurityResponseID)}
+	return []Action{newRedirectRequestAction(p.StatusCode, p.Location)}
 }

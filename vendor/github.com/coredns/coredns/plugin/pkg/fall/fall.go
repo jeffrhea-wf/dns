@@ -32,7 +32,7 @@ func (f F) Through(qname string) bool {
 
 // setZones will set zones in f.
 func (f *F) setZones(zones []string) {
-	z := make([]string, 0, len(zones))
+	z := []string{}
 	for i := range zones {
 		z = append(z, plugin.Host(zones[i]).NormalizeExact()...)
 	}
